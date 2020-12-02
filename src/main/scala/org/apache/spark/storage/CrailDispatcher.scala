@@ -420,7 +420,7 @@ class CrailDispatcher () extends Logging {
   //---------------------------------------
 
   /* Register a shuffle with the manager and obtain a handle for it to pass to tasks. */
-  def registerShuffle(shuffleId: Int, numMaps: Int, partitions: Int) : Unit = {
+  def registerShuffle(shuffleId: Int, partitions: Int) : Unit = {
     //logInfo("registering shuffle " + shuffleId + ", time " + ", cacheSize " + fs.getCacheSize)
     val shuffleStore = new CrailShuffleStore
     val oldStore = shuffleCache.putIfAbsent(shuffleId, shuffleStore)
@@ -501,7 +501,7 @@ class CrailDispatcher () extends Logging {
     streamGroupCloseStats.incrementAndGet()
   }
 
-  def getMultiStream(shuffleId: Int, reduceId: Int, numMaps:Int) : CrailBufferedInputStream = {
+  def getMultiStream(shuffleId: Int, reduceId: Int) : CrailBufferedInputStream = {
     if (debug){
       //request by map task, if first (still in reduce state) then print reduce stats
       isMap.synchronized(

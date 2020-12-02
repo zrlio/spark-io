@@ -28,7 +28,7 @@ import org.apache.spark.common._
 import org.apache.spark.network.buffer.ManagedBuffer
 import org.apache.spark.serializer.CrailSerializer
 import org.apache.spark.shuffle._
-import org.apache.spark.storage.{CrailDispatcher, ShuffleBlockId}
+import org.apache.spark.storage.{BlockId, CrailDispatcher, ShuffleBlockId}
 import org.apache.spark.util.Utils
 
 
@@ -47,12 +47,10 @@ private[spark] class CrailShuffleManager(conf: SparkConf) extends ShuffleManager
   /* Register a shuffle with the manager and obtain a handle for it to pass to tasks. */
   override def registerShuffle[K, V, C](
       shuffleId: Int,
-      numMaps: Int,
       dependency: ShuffleDependency[K, V, C]): ShuffleHandle = {
-    CrailDispatcher.get.registerShuffle(shuffleId, numMaps, dependency.partitioner.numPartitions)
-    new BaseShuffleHandle(shuffleId, numMaps, dependency)
-  }  
-  
+    CrailDispatcher.get.registerShuffle(shuffleId, dependency.partitioner.numPartitions)
+    new BaseShuffleHandle(shuffleId, dependency)
+  }
   /**
    * Get a reader for a range of reduce partitions (startPartition to endPartition-1, inclusive).
    * Called on executors by reduce tasks.
@@ -61,21 +59,20 @@ private[spark] class CrailShuffleManager(conf: SparkConf) extends ShuffleManager
       handle: ShuffleHandle,
       startPartition: Int,
       endPartition: Int,
-      context: TaskContext): ShuffleReader[K, C] = {
+      context: TaskContext,
+      metrics: ShuffleReadMetricsReporter): ShuffleReader[K,C] = {
     if (intialized.compareAndSet(false, true)){
       logInfo("loading shuffler sorter " + shuffleSorterClass)
     }
     new CrailShuffleReader(handle.asInstanceOf[BaseShuffleHandle[K, _, C]],
       startPartition, endPartition, context, shuffleSorter)
   }  
-  
   /** Get a writer for a given partition. Called on executors by map tasks. */
-  override def getWriter[K, V](handle: ShuffleHandle, mapId: Int, context: TaskContext)
+  override def getWriter[K, V](handle: ShuffleHandle, mapId: Long, context: TaskContext, metrics: ShuffleWriteMetricsReporter)
       : ShuffleWriter[K, V] = {
     new CrailShuffleWriter(shuffleBlockResolver, handle.asInstanceOf[BaseShuffleHandle[K, V, _]],
       mapId, context)
   }
-  
   /** Remove a shuffle's metadata from the ShuffleManager. */
   override def unregisterShuffle(shuffleId: Int): Boolean = {
     CrailDispatcher.get.unregisterShuffle(shuffleId)
@@ -91,7 +88,26 @@ private[spark] class CrailShuffleManager(conf: SparkConf) extends ShuffleManager
     logInfo("shutting down crail shuffle manager")
     CrailDispatcher.put
   }
+
+
+
+  override def getReaderForRange[K, C](
+      handle: org.apache.spark.shuffle.ShuffleHandle,
+      startMapIndex: Int,
+      endMapIndex: Int,
+      startPartition: Int,
+      endPartition: Int,
+      context: org.apache.spark.TaskContext,
+      metrics: org.apache.spark.shuffle.ShuffleReadMetricsReporter): org.apache.spark.shuffle.ShuffleReader[K,C] = {
+    if (intialized.compareAndSet(false, true)){
+      logInfo("loading shuffler sorter " + shuffleSorterClass)
+    }
+    new CrailShuffleReader(handle.asInstanceOf[BaseShuffleHandle[K, _, C]],
+      startPartition, endPartition, context, shuffleSorter)
+  }
+
 }
+
 
 private object CrailShuffleManager extends Logging {
 
@@ -99,11 +115,9 @@ private object CrailShuffleManager extends Logging {
 
 class CrailShuffleBlockResolver (conf: SparkConf)
   extends ShuffleBlockResolver with Logging {
-
-  override def getBlockData(blockId: ShuffleBlockId): ManagedBuffer = {
+  override def getBlockData(blockId: BlockId, dirs: Option[Array[String]]): ManagedBuffer = {
     null
   }
-
   override def stop() {
   }
 }
