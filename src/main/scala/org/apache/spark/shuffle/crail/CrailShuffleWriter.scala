@@ -32,7 +32,7 @@ import org.apache.spark.storage._
 class CrailShuffleWriter[K, V](
     shuffleBlockManager: CrailShuffleBlockResolver,
     handle: BaseShuffleHandle[K, V, _],
-    mapId: Int,
+    mapId: Long,
     context: TaskContext)
   extends ShuffleWriter[K, V] with Logging {
 
@@ -82,7 +82,7 @@ class CrailShuffleWriter[K, V](
       initRatio = runTime/initTime
       overhead = 100/initRatio
       logInfo("shuffler writer: initTime " + initTime + ", runTime " + runTime + ", initRatio " + initRatio + ", overhead " + overhead)
-      return Some(MapStatus(blockManager.shuffleServerId, sizes))
+      return Some(MapStatus(blockManager.shuffleServerId, sizes, context.taskAttemptId()))
     } else {
       return None
     }

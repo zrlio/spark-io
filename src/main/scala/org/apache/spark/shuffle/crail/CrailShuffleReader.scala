@@ -46,7 +46,7 @@ class CrailShuffleReader[K, C](
 
   /** Read the combined key-values for this reduce task */
   override def read(): Iterator[Product2[K, C]] = {
-    val multiStream = CrailDispatcher.get.getMultiStream(handle.shuffleId, startPartition, handle.numMaps)
+    val multiStream = CrailDispatcher.get.getMultiStream(handle.shuffleId, startPartition)
     val deserializationStream = serializerInstance.deserializeCrailStream(multiStream)
     dep.keyOrdering match {
       case Some(keyOrd: Ordering[K]) =>
